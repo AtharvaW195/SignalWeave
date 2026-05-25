@@ -1,75 +1,65 @@
-from __future__ import annotations
+"""
+Feature engineering for streaming ticks.
+Design choices:
+- Implement lightweight, fast computations suitable for real-time use.
+- Provide functions for rolling avg/std, z-score, EMA, RSI, momentum, volatility, price delta, and volume spike ratio.
+- Keep pure functions to ease unit testing.
+"""
+import math
+from typing import List, Dict
 
-from dataclasses import dataclass
+def rolling_mean(values: List[float]) -> float:
+    return sum(values)/len(values) if values else 0.0
 
-import numpy as np
+def rolling_std(values: List[float]) -> float:
+    if not values:
+        return 0.0
+    m = rolling_mean(values)
+    var = sum((v-m)**2 for v in values)/len(values)
+    return math.sqrt(var)
 
-from app.core.config import settings
-from app.core.schemas import AggregatedDecision, FeatureSnapshot, TickEvent
-from app.detectors.aggregation import DecisionAggregator
-from app.detectors.rules import RuleBasedDetector
-from app.detectors.statistical import StatisticalDetector
-from app.ml.inference import ModelService
-from app.pipeline.window import WindowRegistry
+def ema(values: List[float], period: int = 10) -> float:
+    if not values:
+        return 0.0
+    alpha = 2/(period+1)
+    s = values[0]
+    for v in values[1:]:
+        s = alpha*v + (1-alpha)*s
+    return s
 
+def rsi(values: List[float], period: int = 14) -> float:
+    if len(values) < 2:
+        return 50.0
+    gains = 0.0
+    losses = 0.0
+    for i in range(1, len(values)):
+        delta = values[i] - values[i-1]
+        if delta > 0:
+            gains += delta
+        else:
+            losses -= delta
+    avg_gain = gains/period if period else gains
+    avg_loss = losses/period if period else losses
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain/avg_loss
+    return 100 - (100/(1+rs))
 
-@dataclass
-class ProcessedEvent:
-    tick: TickEvent
-    features: FeatureSnapshot
-    decision: AggregatedDecision
-
-
-class EventProcessor:
-    def __init__(self) -> None:
-        self.windows = WindowRegistry(size=settings.default_window_size)
-        self.rule_detector = RuleBasedDetector()
-        self.stat_detector = StatisticalDetector()
-        self.model_service = ModelService()
-        self.aggregator = DecisionAggregator()
-
-    def _key(self, event: TickEvent) -> str:
-        return f"{event.source.value}:{event.symbol}:{event.tick_type.value}"
-
-    def _features_for(self, event: TickEvent) -> FeatureSnapshot:
-        window = self.windows.window_for(self._key(event))
-        values = np.asarray(window.values() + [event.value], dtype=float)
-        mean = float(values.mean())
-        std = float(values.std(ddof=0)) if values.size > 1 else 0.0
-        previous = window.events[-1].value if window.events else event.value
-        delta = float(event.value - previous)
-        ema = self._ema(values)
-        roc = float(delta / max(abs(previous), 1e-6))
-        z_score = float((event.value - mean) / max(std, 1e-6))
-        volatility = float(std / max(mean, 1e-6))
-        spike_intensity = float(abs(delta) / max(std, 1e-6))
-        anomaly_history = window.anomaly_history()
-        window.add(event)
-        return FeatureSnapshot(
-            rolling_mean=mean,
-            rolling_std=std,
-            z_score=z_score,
-            ema=ema,
-            volatility=volatility,
-            delta=delta,
-            rate_of_change=roc,
-            spike_intensity=spike_intensity,
-            anomaly_history=anomaly_history,
-            history_depth=len(window.events),
-        )
-
-    def _ema(self, values: np.ndarray, alpha: float = 0.25) -> float:
-        ema = float(values[0])
-        for value in values[1:]:
-            ema = alpha * float(value) + (1 - alpha) * ema
-        return ema
-
-    def process(self, event: TickEvent) -> ProcessedEvent:
-        features = self._features_for(event)
-        rule_result = self.rule_detector.detect(event, features)
-        stat_result = self.stat_detector.detect(event, features)
-        ml_result = self.model_service.predict(event.source, features)
-        decision = self.aggregator.combine(event, features, rule_result, stat_result, ml_result)
-        event.metadata = {**event.metadata, "is_anomaly": decision.is_anomaly, "severity": decision.severity}
-        return ProcessedEvent(tick=event, features=features, decision=decision)
-
+def features_from_window(ticks: List[Dict]) -> Dict:
+    prices = [t['price'] for t in ticks]
+    volumes = [t['volume'] for t in ticks]
+    spreads = [t.get('bid_ask_spread', 0.0) for t in ticks]
+    f = {}
+    f['count'] = len(ticks)
+    f['price_mean'] = rolling_mean(prices) if prices else 0.0
+    f['price_std'] = rolling_std(prices)
+    f['price_ema_10'] = ema(prices, period=10)
+    f['rsi_14'] = rsi(prices, period=14)
+    f['volatility'] = f['price_std']
+    f['momentum'] = prices[-1]-prices[0] if len(prices) >= 2 else 0.0
+    f['price_delta'] = (prices[-1]-prices[-2]) if len(prices) >= 2 else 0.0
+    f['volume_mean'] = rolling_mean(volumes) if volumes else 0.0
+    f['volume_spike_ratio'] = (volumes[-1]/(f['volume_mean']+1e-6)) if volumes else 1.0
+    f['spread_mean'] = rolling_mean(spreads) if spreads else 0.0
+    f['z_score'] = (prices[-1]-f['price_mean'])/(f['price_std']+1e-6) if f['price_std'] else 0.0
+    return f

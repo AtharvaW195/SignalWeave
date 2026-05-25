@@ -1,18 +1,46 @@
-from __future__ import annotations
+"""
+Rule-based detectors: simple, explainable checks.
+Design notes:
+- Rules are deterministic and return both boolean and human-friendly reason strings.
+- Keep thresholds in `core.config` so they can be tuned without code changes.
+"""
+from typing import Dict, Tuple
+from ..core import config
 
-from app.core.schemas import DetectorResult, FeatureSnapshot, SourceType, TickEvent
+
+def price_spike_rule(tick: Dict, window_features: Dict) -> Tuple[bool, str]:
+    # Detect immediate spike vs recent mean
+    if window_features.get('price_mean'):
+        pct = abs(tick['price'] - window_features['price_mean'])/window_features['price_mean']
+        if pct >= config.PRICE_SPIKE_PCT:
+            reason = f"price spike: {pct:.3f} >= {config.PRICE_SPIKE_PCT}"
+            return True, reason
+    return False, ""
 
 
-class RuleBasedDetector:
-    def detect(self, event: TickEvent, features: FeatureSnapshot) -> DetectorResult:
-        if event.source is SourceType.fintech:
-            if abs(features.delta) > 16 or features.spike_intensity > 3.2:
-                return DetectorResult(layer="rule", score=0.93, is_anomaly=True, reason="price spike or suspicious jump")
-        elif event.source is SourceType.networking:
-            if event.metadata.get("packet_loss", 0.0) > 0.08 or features.rolling_std > 7:
-                return DetectorResult(layer="rule", score=0.9, is_anomaly=True, reason="packet loss or reliability breach")
-        else:
-            if event.value > 88 or event.metadata.get("memory_mb", 0.0) > 7600:
-                return DetectorResult(layer="rule", score=0.92, is_anomaly=True, reason="system saturation threshold breached")
-        return DetectorResult(layer="rule", score=0.08, is_anomaly=False, reason="within domain guardrails")
+def spread_widen_rule(tick: Dict, window_features: Dict) -> Tuple[bool, str]:
+    baseline = window_features.get('spread_mean', 0.0)
+    curr = tick.get('bid_ask_spread', 0.0)
+    if baseline > 0 and curr > baseline * (1 + config.SPREAD_WIDEN_PCT):
+        reason = f"spread widened: {curr:.4f} > {baseline:.4f} * (1+{config.SPREAD_WIDEN_PCT})"
+        return True, reason
+    return False, ""
 
+
+def volume_jump_rule(tick: Dict, window_features: Dict) -> Tuple[bool, str]:
+    vol_mean = window_features.get('volume_mean', 0.0)
+    if vol_mean > 0 and tick['volume'] >= vol_mean * config.VOLUME_SPIKE_MULTIPLIER:
+        reason = f"volume jump: {tick['volume']} >= {vol_mean:.1f} * {config.VOLUME_SPIKE_MULTIPLIER}"
+        return True, reason
+    return False, ""
+
+
+def run_rules(tick: Dict, window_features: Dict) -> Dict:
+    results = {}
+    r, reason = price_spike_rule(tick, window_features)
+    results['price_spike'] = {'is_anomaly': r, 'reason': reason}
+    r, reason = spread_widen_rule(tick, window_features)
+    results['spread_widen'] = {'is_anomaly': r, 'reason': reason}
+    r, reason = volume_jump_rule(tick, window_features)
+    results['volume_jump'] = {'is_anomaly': r, 'reason': reason}
+    return results

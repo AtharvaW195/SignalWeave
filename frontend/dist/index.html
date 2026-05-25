@@ -3,12 +3,63 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#08111d" />
     <title>SignalWeave</title>
-    <script type="module" crossorigin src="/assets/index-kjv7S4du.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-xlsGsQZv.css">
+    <script type="module" crossorigin src="/assets/index-DZHCPk0g.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-1IEuEIy_.css">
   </head>
   <body>
+    <div id="root"></div>
+  </body>
+</html><!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#08111d" />
+    <title>SignalWeave</title>
+      <style>
+        body {
+          margin: 0;
+          background: #08111f;
+          color: #e5eefc;
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        .boot-shell {
+          min-height: 100vh;
+          padding: 32px 24px;
+          background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.20), transparent 28%), linear-gradient(180deg, #08111f 0%, #0d1628 100%);
+        }
+        .boot-card {
+          max-width: 920px;
+          margin: 0 auto 24px;
+          padding: 24px;
+          border-radius: 20px;
+          background: rgba(7, 14, 27, 0.82);
+          border: 1px solid rgba(148, 163, 184, 0.16);
+          box-shadow: 0 18px 60px rgba(0, 0, 0, 0.22);
+        }
+        .boot-card h1 { margin: 8px 0 12px; font-size: clamp(2rem, 3vw, 3rem); }
+        .boot-copy { color: #b8c7e0; line-height: 1.6; }
+        .boot-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+        .boot-links a { color: #dbeafe; text-decoration: none; padding: 8px 12px; border-radius: 999px; background: rgba(59, 130, 246, 0.16); border: 1px solid rgba(96, 165, 250, 0.25); }
+        .boot-note { margin-top: 14px; color: #93a9ca; font-size: 0.95rem; }
+      </style>
+  </head>
+  <body>
+      <div class="boot-shell">
+        <div class="boot-card">
+          <p style="margin:0;color:#8fa4c8;text-transform:uppercase;letter-spacing:.16em;font-size:.72rem;">SignalWeave</p>
+          <h1>Real-time market surveillance dashboard</h1>
+          <p class="boot-copy">If the React app is still booting, this page ensures you still have something visible. The live dashboard should mount below this shell once the frontend finishes loading.</p>
+          <div class="boot-links">
+            <a href="http://localhost:8000/health" target="_blank" rel="noreferrer">Backend health</a>
+            <a href="http://localhost:8000/api/recent_ticks" target="_blank" rel="noreferrer">Recent ticks</a>
+            <a href="http://localhost:8000/api/recent_anomalies" target="_blank" rel="noreferrer">Recent anomalies</a>
+            <a href="http://localhost:8080" target="_blank" rel="noreferrer">pgAdmin</a>
+          </div>
+          <div class="boot-note">Tip: if the dashboard looks stale, do a hard refresh with Ctrl+F5.</div>
+        </div>
+      </div>
     <div id="root"></div>
   </body>
   </html>

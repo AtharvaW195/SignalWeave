@@ -1,35 +1,25 @@
-from __future__ import annotations
+"""
+Sliding window per-symbol for feature computation.
+Design:
+- Keep a fixed-size deque of recent ticks.
+- Expose helper methods to compute simple rolling stats used by detectors and ML features.
+"""
+from collections import deque
+from typing import Deque, Dict, List
 
-from collections import defaultdict, deque
-from dataclasses import dataclass, field
-
-from app.core.schemas import TickEvent
-
-
-@dataclass
 class StreamWindow:
-    size: int
-    events: deque[TickEvent] = field(default_factory=deque)
-
-    def add(self, event: TickEvent) -> None:
-        self.events.append(event)
-        while len(self.events) > self.size:
-            self.events.popleft()
-
-    def values(self) -> list[float]:
-        return [event.value for event in self.events]
-
-    def anomaly_history(self) -> float:
-        if not self.events:
-            return 0.0
-        return sum(1 for event in self.events if event.metadata.get("is_anomaly")) / len(self.events)
-
-
-class WindowRegistry:
-    def __init__(self, size: int = 64) -> None:
+    def __init__(self, size: int = 64):
         self.size = size
-        self._windows: dict[str, StreamWindow] = defaultdict(lambda: StreamWindow(size=size))
+        self.windows = {}  # symbol -> deque of ticks
 
-    def window_for(self, stream_key: str) -> StreamWindow:
-        return self._windows[stream_key]
+    def append(self, tick: Dict):
+        sym = tick["symbol"]
+        if sym not in self.windows:
+            self.windows[sym] = deque(maxlen=self.size)
+        self.windows[sym].append(tick)
 
+    def get(self, symbol: str) -> List[Dict]:
+        return list(self.windows.get(symbol, []))
+
+    def length(self, symbol: str) -> int:
+        return len(self.windows.get(symbol, []))
